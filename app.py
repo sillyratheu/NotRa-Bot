@@ -10,7 +10,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TELEGRAM_BOT_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
 
 st.title("🤖 NotRa Bot — All-in-One AI Assistant")
-st.write("NotRa Bot is live on Streamlit Cloud and ready to chat!")
+st.write("NotRa Bot is live on Streamlit Cloud (Thread & Signal Optimized).")
 
 # --- FREE HUGGINGFACE INFERENCE API ---
 HF_API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
@@ -120,24 +120,21 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"An error occurred: {e}")
 
-# --- ROBUST BACKGROUND THREAD RUNNER ---
+# --- THREAD-SAFE BACKGROUND RUNNER (FIXED FOR PYTHON 3.14) ---
 def run_telegram_bot():
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        application.add_handler(CommandHandler("start", start_cmd))
-        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start_cmd))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
 
-        print("Starting bot polling...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-    except Exception as e:
-        print(f"Bot polling error: {e}")
+    # Disable signal handling for background thread execution
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, stop_signals=None)
 
 if "bot_started" not in st.session_state:
     st.session_state["bot_started"] = True
     threading.Thread(target=run_telegram_bot, daemon=True).start()
 
-st.success("Bot background thread initialized successfully!")
+st.success("NotRa Bot is active and running smoothly!")
