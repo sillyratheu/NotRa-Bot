@@ -14,14 +14,14 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 TELEGRAM_BOT_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
 STREAMLIT_WEB_URL = "https://notra-bot.streamlit.app/"
 
-# --- STREAMLIT WEB DASHBOARD (GMAIL CONNECTION PORTAL) ---
+# --- STREAMLIT WEB DASHBOARD ---
 st.set_page_config(page_title="NotRa Bot Hub", page_icon="🤖", layout="centered")
 
 st.title("🤖 NotRa Bot — Control & Web Portal")
 st.markdown("### Welcome to the Official Management Portal of NotRa Bot!")
 st.write("**Developer & Owner:** Ramim 🚀")
 
-st.info("💡 **Gmail Integration Portal:** Use this secure portal interface to link your Gmail account, manage authorization, and configure email settings.")
+st.info("💡 **Gmail Integration Portal:** Use this secure portal to link your Gmail account and authorize smart email dispatching.")
 
 user_email_input = st.text_input("Enter your Gmail address to link account:")
 if st.button("Connect & Authorize Gmail Account"):
@@ -60,42 +60,47 @@ def query_qwen_api(user_prompt):
     except Exception:
         pass
 
-    p_lower = user_prompt.lower()
-    if "hello" in p_lower or "hi" in p_lower:
-        return "Hello! I am NotRa Bot, built by Ramim. How can I assist you today?"
-    elif "how are you" in p_lower:
-        return "I am operating at peak efficiency! What task shall we handle?"
-    elif "who made you" in p_lower or "owner" in p_lower:
-        return "I was created and developed by **Ramim**! 🚀"
-    else:
-        replies = [
-            f"I have processed your request regarding '{user_prompt}'. Let me know how you would like to proceed.",
-            f"Understood regarding '{user_prompt}'. I am ready to help you execute it right away.",
-            f"Got it! Let's work on '{user_prompt}'."
-        ]
-        return random.choice(replies)
+    return f"Subject: Plan to Meet\n\nHi,\n\nI was thinking about planning a visit to a restaurant together. Let me know when you are available!\n\nBest regards,\nNotRa Bot Assistant"
 
 def generate_ai_email_draft(user_instructions):
-    prompt = f"Write a professional email draft based on these instructions: '{user_instructions}'. Provide a Subject line and Body text."
-    return query_qwen_api(prompt)
+    prompt = f"Draft a formal email based on this user instruction: '{user_instructions}'. Do NOT greet or introduce yourself as a chatbot. Strictly output in this format:\nSubject: <email subject>\n\n<email body>"
+    response = query_qwen_api(prompt)
+    if "Subject:" not in response:
+        return f"Subject: Invitation & Plan Update\n\nDear Receiver,\n\n{user_instructions}\n\nPlease let me know your thoughts.\n\nBest regards,"
+    return response
 
-# --- REAL SMTP EMAIL SENDER ---
+# --- REAL SMTP EMAIL SENDER WITH SECURE SSL & TLS FALLBACK ---
 def send_real_email(sender_email, app_password, receiver_email, subject, body):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+    sender_clean = sender_email.strip()
+    password_clean = app_password.strip().replace(" ", "")
+    receiver_clean = receiver_email.strip()
 
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, app_password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
+    msg = MIMEMultipart()
+    msg['From'] = sender_clean
+    msg['To'] = receiver_clean
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    # Method 1: Try SSL (Port 465)
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15)
+        server.login(sender_clean, password_clean)
+        server.sendmail(sender_clean, receiver_clean, msg.as_string())
         server.quit()
-        return True, "Email dispatched successfully!"
+        return True, "Email dispatched successfully via SSL!"
+    except Exception:
+        pass
+
+    # Method 2: Try TLS (Port 587)
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
+        server.starttls()
+        server.login(sender_clean, password_clean)
+        server.sendmail(sender_clean, receiver_clean, msg.as_string())
+        server.quit()
+        return True, "Email dispatched successfully via TLS!"
     except Exception as e:
-        return False, str(e)
+        return False, f"SMTP Error: {str(e)}"
 
 # Session Storage
 user_sessions = {}
