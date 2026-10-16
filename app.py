@@ -60,16 +60,16 @@ def query_qwen_api(user_prompt):
     except Exception:
         pass
 
-    return f"Subject: Plan to Meet\n\nHi,\n\nI was thinking about planning a visit to a restaurant together. Let me know when you are available!\n\nBest regards,\nNotRa Bot Assistant"
+    return f"Subject: Plan to Meet\n\nHi,\n\nI was thinking about planning a visit to a restaurant together. Let me know when you are available!"
 
-def generate_ai_email_draft(user_instructions):
-    prompt = f"Draft a formal email based on this user instruction: '{user_instructions}'. Do NOT greet or introduce yourself as a chatbot. Strictly output in this format:\nSubject: <email subject>\n\n<email body>"
+def generate_ai_email_draft(user_instructions, sender_name):
+    prompt = f"Draft a professional email based on this instruction: '{user_instructions}'. Do not include any chatbot greetings. End the email with 'Best regards, {sender_name}'. Strictly output in this format:\nSubject: <subject>\n\n<body>"
     response = query_qwen_api(prompt)
     if "Subject:" not in response:
-        return f"Subject: Invitation & Plan Update\n\nDear Receiver,\n\n{user_instructions}\n\nPlease let me know your thoughts.\n\nBest regards,"
+        return f"Subject: Invitation & Plan\n\nHi,\n\n{user_instructions}\n\nPlease let me know your thoughts.\n\nBest regards,\n{sender_name}"
     return response
 
-# --- REAL SMTP EMAIL SENDER WITH SECURE SSL & TLS FALLBACK ---
+# --- ROBUST SMTP EMAIL SENDER ---
 def send_real_email(sender_email, app_password, receiver_email, subject, body):
     sender_clean = sender_email.strip()
     password_clean = app_password.strip().replace(" ", "")
@@ -81,26 +81,29 @@ def send_real_email(sender_email, app_password, receiver_email, subject, body):
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
 
-    # Method 1: Try SSL (Port 465)
+    errors = []
+    # Try Port 465 (SSL)
     try:
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15)
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
         server.login(sender_clean, password_clean)
         server.sendmail(sender_clean, receiver_clean, msg.as_string())
         server.quit()
         return True, "Email dispatched successfully via SSL!"
-    except Exception:
-        pass
+    except Exception as e:
+        errors.append(f"SSL (465): {str(e)}")
 
-    # Method 2: Try TLS (Port 587)
+    # Try Port 587 (TLS)
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
         server.starttls()
         server.login(sender_clean, password_clean)
         server.sendmail(sender_clean, receiver_clean, msg.as_string())
         server.quit()
         return True, "Email dispatched successfully via TLS!"
     except Exception as e:
-        return False, f"SMTP Error: {str(e)}"
+        errors.append(f"TLS (587): {str(e)}")
+
+    return False, f"All SMTP attempts failed. Details: {'; '.join(errors)}"
 
 # Session Storage
 user_sessions = {}
@@ -211,13 +214,37 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
+    # Prevent menu buttons from breaking active email configuration steps
+    if user_text in ["📧 Email Management", "📅 Meeting Scheduling", "🖼️ Process Photo", "💬 Smart Chat", "👤 Bot Info"]:
+        if user_text == "📧 Email Management":
+            user_sessions[chat_id] = {"step": "awaiting_sender"}
+            await update.message.reply_text("📧 **Real Email Dispatcher (Step 1/4):**\n\nPlease enter your **Sender Gmail Address**:")
+            return
+        elif user_text == "📅 Meeting Scheduling":
+            await update.message.reply_text("📅 **Meeting Scheduler:**\n• Send details like 'Schedule meeting tomorrow at 3 PM' to set a reminder.")
+            return
+        elif user_text == "🖼️ Process Photo":
+            await update.message.reply_text("🖼️ **Process Photo Agent Active:**\n• Send any image or screenshot with a caption to analyze!")
+            return
+        elif user_text == "💬 Smart Chat":
+            await update.message.reply_text("💬 **Smart Chat Active:**\n• Type any question below!")
+            return
+        elif user_text == "👤 Bot Info":
+            await update.message.reply_text("🤖 **NotRa Bot Info:** Created by **Ramim** 🚀")
+            return
+
     session = user_sessions.get(chat_id)
 
-    # Multi-step AI Email Drafting & English Confirmation Flow
+    # Multi-step AI Email Drafting & Confirmation Flow
     if session:
         step = session.get("step")
         if step == "awaiting_sender":
             session["sender"] = user_text
+            # Extract user name cleanly from email prefix (e.g., ramim125g -> Ramim)
+            email_prefix = user_text.split("@")[0]
+            clean_name = "".join([c for c in email_prefix if c.isalpha()]).capitalize() or "User"
+            session["sender_name"] = clean_name
+            
             session["step"] = "awaiting_password"
             await update.message.reply_text("🔑 **Step 2/4:** Please enter your Gmail **App Password**:")
             return
@@ -232,7 +259,8 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📝 **Step 4/4:** What would you like to communicate? Type your message/topic and AI will compose the email:")
             return
         elif step == "awaiting_content":
-            ai_draft = generate_ai_email_draft(user_text)
+            sender_name = session.get("sender_name", "User")
+            ai_draft = generate_ai_email_draft(user_text, sender_name)
             session["draft"] = ai_draft
             session["step"] = "awaiting_confirmation"
             
@@ -269,7 +297,7 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 user_sessions[chat_id] = None
                 
-                await update.message.reply_text("⏳ Dispatching real email via Gmail SMTP...")
+                await update.message.reply_text("⏳ Dispatching real email via secure SMTP...")
                 success, msg = send_real_email(sender, password, receiver, subject, draft_content)
                 
                 if success:
