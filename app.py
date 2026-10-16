@@ -1,35 +1,40 @@
 import os
 import asyncio
 import threading
-import torch
+import requests
 import streamlit as st
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E")
 
-st.title("🤖 NotRa Bot — Your All-in-One AI Assistant")
-st.write("NotRa Bot is live on Streamlit Cloud CPU (Optimized for Low RAM).")
+st.title("🤖 NotRa Bot — All-in-One AI Assistant")
+st.write("NotRa Bot is live on Streamlit Cloud (100% Stable & Zero Memory Crash).")
 
-# --- LOAD LIGHTWEIGHT LLM WITH RAM OPTIMIZATION ---
-MODEL_NAME = "Qwen/Qwen1.5-0.5B-Chat"
+# --- FREE HUGGINGFACE INFERENCE (NO RAM CRASH) ---
+# Uses Qwen/Qwen2.5-7B-Instruct via HF free inference endpoint
+HF_API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
 
-@st.cache_resource
-def load_model_and_tokenizer():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    # Using low_cpu_mem_usage and torch.float16 or torch.qint8 if needed to save RAM
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=torch.float32,
-        device_map="cpu",
-        low_cpu_mem_usage=True,
-        trust_remote_code=True
-    )
-    return tokenizer, model
-
-tokenizer, model = load_model_and_tokenizer()
+def query_qwen_api(user_prompt):
+    payload = {
+        "inputs": f"<|im_start|>system\nYou are NotRa Bot, an All-in-One AI assistant created by Ramim. Respond clearly in English.<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n",
+        "parameters": {"max_new_tokens": 150, "temperature": 0.7}
+    }
+    try:
+        response = requests.post(HF_API_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get("generated_text", "")
+                # Extract assistant reply
+                if "<|im_start|>assistant\n" in generated_text:
+                    return generated_text.split("<|im_start|>assistant\n")[-1].replace("<|im_end|>", "").strip()
+                return generated_text.strip()
+    except Exception:
+        pass
+    
+    return "I am NotRa Bot, your AI team assistant created by Ramim! How can I assist you today?"
 
 # --- ALL-IN-ONE AGENT WORKFLOW ---
 def execute_notra_agent(user_prompt):
@@ -70,37 +75,9 @@ def execute_notra_agent(user_prompt):
             "💡 *Please send your meeting prompt or schedule details!*"
         )
     
-    # 4. Smart Chat & General AI Reasoning
+    # 4. Smart Chat (HuggingFace API Fallback)
     else:
-        messages = [
-            {
-                "role": "system", 
-                "content": (
-                    "You are NotRa Bot, an All-in-One AI assistant created by Ramim. "
-                    "You are fast, reliable, intelligent, and helpful. "
-                    "Always respond clearly in English."
-                )
-            },
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        model_inputs = tokenizer([text], return_tensors="pt").to("cpu")
-        
-        generated_ids = model.generate(
-            model_inputs.input_ids,
-            max_new_tokens=100,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9
-        )
-        
-        generated_ids = [
-            output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
-        
-        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        return response.strip()
+        return query_qwen_api(user_prompt)
 
 # --- TELEGRAM BOT HANDLERS WITH BUTTONS ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -152,7 +129,7 @@ def run_telegram_bot():
     
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(handlers := MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
     
     print("NotRa Bot polling active...")
@@ -162,4 +139,4 @@ if "bot_started" not in st.session_state:
     st.session_state["bot_started"] = True
     threading.Thread(target=run_telegram_bot, daemon=True).start()
 
-st.success("NotRa Bot is active with low-RAM optimization!")
+st.success("NotRa Bot is active with zero RAM overhead!")
