@@ -12,33 +12,33 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 
 # --- CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
-STREAMLIT_WEB_URL = "https://ramims.work.gd"  # Your deployed web portal URL for Gmail OAuth/Connection
+STREAMLIT_WEB_URL = "https://notra-bot.streamlit.app/"
 
-# --- STREAMLIT WEB DASHBOARD ---
+# --- STREAMLIT WEB DASHBOARD (GMAIL CONNECTION PORTAL) ---
 st.set_page_config(page_title="NotRa Bot Hub", page_icon="🤖", layout="centered")
 
 st.title("🤖 NotRa Bot — Control & Web Portal")
 st.markdown("### Welcome to the Official Management Portal of NotRa Bot!")
 st.write("**Developer & Owner:** Ramim 🚀")
 
-st.info("💡 **Gmail Integration Portal:** Use this secure web portal to link your Gmail account, manage contacts, and authorize smart email dispatching.")
+st.info("💡 **Gmail Integration Portal:** Use this secure portal interface to link your Gmail account, manage authorization, and configure email settings.")
 
-user_email_input = st.text_input("Enter your Gmail address to link:")
+user_email_input = st.text_input("Enter your Gmail address to link account:")
 if st.button("Connect & Authorize Gmail Account"):
     if user_email_input:
-        st.success(f"Successfully linked **{user_email_input}** to NotRa Bot!")
+        st.success(f"Successfully linked **{user_email_input}** to NotRa Bot! You can now proceed with email operations.")
     else:
-        st.error("Please enter a valid email address.")
+        st.error("Please enter a valid Gmail address.")
 
 st.divider()
 st.write("🟢 **Bot Status:** Online & Active on Telegram 24/7")
 
-# --- HUGGING FACE API (Qwen2.5-7B-Instruct - Best Open Model) ---
+# --- HUGGING FACE API (Qwen2.5-7B-Instruct) ---
 HF_TEXT_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
 
 def query_qwen_api(user_prompt):
     payload = {
-        "inputs": f"<|im_start|>system\nYou are NotRa Bot, a high-performance AI assistant created by Ramim. Give direct, intelligent, and helpful answers in English.<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n",
+        "inputs": f"<|im_start|>system\nYou are NotRa Bot, an intelligent AI assistant created by Ramim. Provide direct, accurate, and professional responses in English.<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n",
         "parameters": {"max_new_tokens": 250, "temperature": 0.75, "top_p": 0.9}
     }
     try:
@@ -60,21 +60,24 @@ def query_qwen_api(user_prompt):
     except Exception:
         pass
 
-    # Dynamic Fallback (No boring repetition)
     p_lower = user_prompt.lower()
     if "hello" in p_lower or "hi" in p_lower:
-        return "Hello! I am NotRa Bot, built by Ramim. How can I help you today?"
+        return "Hello! I am NotRa Bot, built by Ramim. How can I assist you today?"
     elif "how are you" in p_lower:
         return "I am operating at peak efficiency! What task shall we handle?"
     elif "who made you" in p_lower or "owner" in p_lower:
         return "I was created and developed by **Ramim**! 🚀"
     else:
         replies = [
-            f"I have analyzed your request regarding '{user_prompt}'. Let me know how you want to proceed.",
-            f"Understood. For '{user_prompt}', I am ready to help you execute it right away.",
-            f"Got it! Let's work on '{user_prompt}'. Tell me the specific details or instructions."
+            f"I have processed your request regarding '{user_prompt}'. Let me know how you would like to proceed.",
+            f"Understood regarding '{user_prompt}'. I am ready to help you execute it right away.",
+            f"Got it! Let's work on '{user_prompt}'."
         ]
         return random.choice(replies)
+
+def generate_ai_email_draft(user_instructions):
+    prompt = f"Write a professional email draft based on these instructions: '{user_instructions}'. Provide a Subject line and Body text."
+    return query_qwen_api(prompt)
 
 # --- REAL SMTP EMAIL SENDER ---
 def send_real_email(sender_email, app_password, receiver_email, subject, body):
@@ -90,11 +93,11 @@ def send_real_email(sender_email, app_password, receiver_email, subject, body):
         server.login(sender_email, app_password)
         server.sendmail(sender_email, receiver_email, msg.as_string())
         server.quit()
-        return True, "Email sent successfully!"
+        return True, "Email dispatched successfully!"
     except Exception as e:
         return False, str(e)
 
-# Session Storage for Email & Meeting Management
+# Session Storage
 user_sessions = {}
 
 # --- WORKFLOW AGENTS & REMINDER HANDLER ---
@@ -116,24 +119,18 @@ def execute_notra_agent(user_prompt, chat_id, context):
             "🤖 **NotRa Bot System Info**\n\n"
             "• **Developer:** Ramim 🚀\n"
             "• **Status:** Active & Fully Operational\n"
-            "• **Features:** Gmail Web Portal Link, Meeting Scheduler with Reminders, Vision AI & Smart Chat."
+            "• **Features:** Gmail Web Portal Link, Meeting Reminders, AI Vision Media & Smart Chat."
         )
 
     elif "schedule meeting" in prompt_lower or "meeting" in prompt_lower or "reminder" in prompt_lower:
-        # Extract meeting info and set simulated reminder task
-        meeting_text = user_prompt.replace("schedule meeting", "").replace("meeting", "").strip()
-        if not meeting_text:
-        # Schedule a test/quick reminder in 30 seconds for demonstration or set custom time
-            meeting_text = "General Project Sync"
-        
-        # Add job to job queue (e.g., reminder in 60 seconds or parsed time)
+        meeting_text = user_prompt.replace("schedule meeting", "").replace("meeting", "").strip() or "General Sync Meeting"
         if context and context.job_queue:
             context.job_queue.run_once(schedule_meeting_reminder, 30, chat=chat_id, data=meeting_text, name=str(chat_id))
         
         return (
             "📅 **Meeting Scheduled Successfully!**\n\n"
             f"• **Topic/Details:** {meeting_text}\n"
-            "• **Status:** Reminder set! I will notify you right on time. 🟢"
+            "• **Status:** Reminder scheduled! I will alert you right on time. 🟢"
         )
 
     elif "smart chat" in prompt_lower:
@@ -146,7 +143,7 @@ def execute_notra_agent(user_prompt, chat_id, context):
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inline_keyboard = [
         [InlineKeyboardButton("🌐 Open Web Portal to Link Gmail", url=STREAMLIT_WEB_URL)],
-        [InlineKeyboardButton("✍️ Send Real Email via Bot", callback_data="send_email_prompt")],
+        [InlineKeyboardButton("✍️ Send Real Email via AI Draft", callback_data="send_email_prompt")],
         [InlineKeyboardButton("📅 Meeting Scheduling", callback_data="meeting_task")],
         [InlineKeyboardButton("🖼️ Process Photo", callback_data="photo_task")],
         [InlineKeyboardButton("💬 Smart Chat", callback_data="chat_task")],
@@ -163,8 +160,8 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = (
         "🤖 **Welcome to NotRa Bot — Your All-in-One AI Assistant!**\n\n"
-        "Created by **Ramim**, NotRa handles real emails, intelligent meeting reminders, and photo analysis.\n\n"
-        "📌 **Choose an option below or send your prompt directly:**"
+        "Created by **Ramim**, NotRa handles real email dispatching, meeting reminders, vision media analysis, and smart chat.\n\n"
+        "📌 **Choose an option below or send your request directly:**"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
     await update.message.reply_text("👇 **Interactive Control Panel:**", reply_markup=inline_markup)
@@ -178,16 +175,15 @@ async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if data == "send_email_prompt" or data == "email_menu":
         user_sessions[chat_id] = {"step": "awaiting_sender"}
         await query.message.reply_text(
-            "📧 **Real Email Dispatcher (Step 1/4):**\n\n"
-            "Doya kore apnar real **Sender Gmail address** din:",
+            "📧 **Real Email Dispatcher (Step 1/4):**\n\nPlease enter your **Sender Gmail Address**:",
             parse_mode="Markdown"
         )
     elif data == "photo_task":
-        await query.message.reply_text("🖼️ **Process Photo Agent Active:**\n• Send any image/screenshot directly in chat with a caption to analyze!", parse_mode="Markdown")
+        await query.message.reply_text("🖼️ **Process Photo Agent Active:**\n• Send any image or screenshot directly with a caption to analyze!", parse_mode="Markdown")
     elif data == "meeting_task":
-        await query.message.reply_text("📅 **Meeting Scheduler:**\n• Send details like 'Schedule meeting with John tomorrow at 3 PM' to set reminders.", parse_mode="Markdown")
+        await query.message.reply_text("📅 **Meeting Scheduler:**\n• Send details like 'Schedule meeting with project team tomorrow at 3 PM' to set a reminder.", parse_mode="Markdown")
     elif data == "chat_task":
-        await query.message.reply_text("💬 **Smart Chat Active:**\n• Send any question or text prompt!", parse_mode="Markdown")
+        await query.message.reply_text("💬 **Smart Chat Active:**\n• Type any question or instruction below!", parse_mode="Markdown")
     elif data == "info_task":
         await query.message.reply_text("🤖 **NotRa Bot Info:**\n• Developer & Owner: **Ramim** 🚀", parse_mode="Markdown")
 
@@ -195,8 +191,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     caption = update.message.caption or "Analyze and describe this image."
     
-    # Advanced AI Vision Analysis via Hugging Face Model
-    ai_vision_analysis = query_qwen_api(f"The user sent an image with this caption/instruction: '{caption}'; provide a smart, detailed analysis.")
+    ai_vision_analysis = query_qwen_api(f"The user sent an image with caption: '{caption}'. Provide a clear, detailed analysis.")
     
     response = (
         "🖼️ **NotRa Vision & Media Agent:**\n\n"
@@ -213,52 +208,79 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = user_sessions.get(chat_id)
 
-    # Handle Multi-step Real Email Dispatch
+    # Multi-step AI Email Drafting & English Confirmation Flow
     if session:
         step = session.get("step")
         if step == "awaiting_sender":
             session["sender"] = user_text
             session["step"] = "awaiting_password"
-            await update.message.reply_text("🔑 **Step 2/4:** Doya kore apnar Gmail-er **App Password** din:")
+            await update.message.reply_text("🔑 **Step 2/4:** Please enter your Gmail **App Password**:")
             return
         elif step == "awaiting_password":
             session["password"] = user_text
             session["step"] = "awaiting_receiver"
-            await update.message.reply_text("📬 **Step 3/4:** Kake email pathaben? Tar **Receiver Email address** din:")
+            await update.message.reply_text("📬 **Step 3/4:** Please enter the **Recipient Email Address**:")
             return
         elif step == "awaiting_receiver":
             session["receiver"] = user_text
             session["step"] = "awaiting_content"
-            await update.message.reply_text("📝 **Step 4/4:** Ekhon **Subject ebong Message** `Subject: ... | Message: ...` format-e din:")
+            await update.message.reply_text("📝 **Step 4/4:** What would you like to communicate? Type your message/topic and AI will compose the email:")
             return
         elif step == "awaiting_content":
-            try:
-                parts = user_text.split("|")
-                subj_part = parts[0].replace("Subject:", "").strip()
-                body_part = parts[1].replace("Message:", "").strip()
-                
+            ai_draft = generate_ai_email_draft(user_text)
+            session["draft"] = ai_draft
+            session["step"] = "awaiting_confirmation"
+            
+            confirm_keyboard = ReplyKeyboardMarkup([["Yes", "No"]], resize_keyboard=True, one_time_keyboard=True)
+            
+            await update.message.reply_text(
+                "📝 **AI Generated Email Draft:**\n\n"
+                f"{ai_draft}\n\n"
+                "-----------------------------------\n"
+                "❓ **Can I send this email now?** (Type/Click **Yes** to confirm, or **No** to cancel)",
+                reply_markup=confirm_keyboard
+            )
+            return
+        elif step == "awaiting_confirmation":
+            reply_keyboard = ReplyKeyboardMarkup([
+                ["📧 Email Management", "📅 Meeting Scheduling"],
+                ["🖼️ Process Photo", "💬 Smart Chat"],
+                ["👤 Bot Info"]
+            ], resize_keyboard=True)
+
+            if user_text.lower() in ["yes", "y", "send", "confirm"]:
                 sender = session["sender"]
                 password = session["password"]
                 receiver = session["receiver"]
+                draft_content = session["draft"]
+                
+                subject = "Notification from NotRa AI Assistant"
+                if "Subject:" in draft_content:
+                    lines = draft_content.split("\n")
+                    for l in lines:
+                        if "Subject:" in l:
+                            subject = l.replace("Subject:", "").strip()
+                            break
                 
                 user_sessions[chat_id] = None
                 
-                await update.message.reply_text("⏳ Sending real email via Gmail SMTP...")
-                success, msg = send_real_email(sender, password, receiver, subj_part, body_part)
+                await update.message.reply_text("⏳ Dispatching real email via Gmail SMTP...")
+                success, msg = send_real_email(sender, password, receiver, subject, draft_content)
                 
                 if success:
-                    await update.message.reply_text("✅ **Real Email Sent Successfully to Receiver!** 🚀")
+                    await update.message.reply_text("✅ **Real Email Sent Successfully to Recipient!** 🚀", reply_markup=reply_keyboard)
                 else:
-                    await update.message.reply_text(f"❌ Failed: {msg}")
-            except Exception:
-                await update.message.reply_text("❌ Format vul! `Subject: ... | Message: ...` format-e abar din.")
+                    await update.message.reply_text(f"❌ Failed to send email: {msg}", reply_markup=reply_keyboard)
+            else:
+                user_sessions[chat_id] = None
+                await update.message.reply_text("❌ Email dispatch cancelled.", reply_markup=reply_keyboard)
             return
 
-    # Standard Routing
+    # Standard Keyword Routing
     p_lower = user_text.lower()
     if "email management" in p_lower or "send email" in p_lower:
         user_sessions[chat_id] = {"step": "awaiting_sender"}
-        await update.message.reply_text("📧 **Real Email Dispatcher (Step 1/4):** Doya kore apnar real **Sender Gmail address** din:")
+        await update.message.reply_text("📧 **Real Email Dispatcher (Step 1/4):** Please enter your **Sender Gmail Address**:")
     else:
         response = execute_notra_agent(user_text, chat_id, context)
         await update.message.reply_text(response, parse_mode="Markdown", disable_web_page_preview=False)
