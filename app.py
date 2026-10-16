@@ -11,18 +11,20 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E")
 
 st.title("🤖 NotRa Bot — Your All-in-One AI Assistant")
-st.write("NotRa Bot is live on Streamlit Cloud CPU (Zero Server Storage).")
+st.write("NotRa Bot is live on Streamlit Cloud CPU (Optimized for Low RAM).")
 
-# --- LOAD LIGHTWEIGHT LLM ---
+# --- LOAD LIGHTWEIGHT LLM WITH RAM OPTIMIZATION ---
 MODEL_NAME = "Qwen/Qwen1.5-0.5B-Chat"
 
 @st.cache_resource
 def load_model_and_tokenizer():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    # Using low_cpu_mem_usage and torch.float16 or torch.qint8 if needed to save RAM
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
         torch_dtype=torch.float32,
         device_map="cpu",
+        low_cpu_mem_usage=True,
         trust_remote_code=True
     )
     return tokenizer, model
@@ -87,7 +89,7 @@ def execute_notra_agent(user_prompt):
         
         generated_ids = model.generate(
             model_inputs.input_ids,
-            max_new_tokens=150,
+            max_new_tokens=100,
             do_sample=True,
             temperature=0.7,
             top_p=0.9
@@ -102,7 +104,6 @@ def execute_notra_agent(user_prompt):
 
 # --- TELEGRAM BOT HANDLERS WITH BUTTONS ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Keyboard Buttons Layout
     keyboard = [
         ["📧 Email Management", "📅 Meeting Scheduling"],
         ["🖼️ Process Photo", "💬 Smart Chat"],
@@ -151,7 +152,7 @@ def run_telegram_bot():
     
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(handlers := MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
     
     print("NotRa Bot polling active...")
@@ -161,4 +162,4 @@ if "bot_started" not in st.session_state:
     st.session_state["bot_started"] = True
     threading.Thread(target=run_telegram_bot, daemon=True).start()
 
-st.success("NotRa Bot is active with Telegram Reply Keyboards!")
+st.success("NotRa Bot is active with low-RAM optimization!")
