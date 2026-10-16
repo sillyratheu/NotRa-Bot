@@ -7,7 +7,8 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-TELEGRAM_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E")
+TELEGRAM_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 st.title("🤖 NotRa Bot — All-in-One AI Assistant")
 st.write("NotRa Bot is live on Streamlit Cloud (100% Stable & Zero Memory Crash).")
