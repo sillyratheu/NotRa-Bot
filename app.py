@@ -7,14 +7,12 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-TELEGRAM_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+TELEGRAM_BOT_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
 
 st.title("🤖 NotRa Bot — All-in-One AI Assistant")
 st.write("NotRa Bot is live on Streamlit Cloud (100% Stable & Zero Memory Crash).")
 
 # --- FREE HUGGINGFACE INFERENCE (NO RAM CRASH) ---
-# Uses Qwen/Qwen2.5-7B-Instruct via HF free inference endpoint
 HF_API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
 
 def query_qwen_api(user_prompt):
@@ -28,19 +26,18 @@ def query_qwen_api(user_prompt):
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
                 generated_text = result[0].get("generated_text", "")
-                # Extract assistant reply
                 if "<|im_start|>assistant\n" in generated_text:
                     return generated_text.split("<|im_start|>assistant\n")[-1].replace("<|im_end|>", "").strip()
                 return generated_text.strip()
     except Exception:
         pass
-    
+
     return "I am NotRa Bot, your AI team assistant created by Ramim! How can I assist you today?"
 
 # --- ALL-IN-ONE AGENT WORKFLOW ---
 def execute_notra_agent(user_prompt):
     prompt_lower = user_prompt.lower()
-    
+
     # 1. Identity & Owner Check
     if "who are you" in prompt_lower or "your name" in prompt_lower or "bot info" in prompt_lower or "about" in prompt_lower:
         return (
@@ -50,7 +47,7 @@ def execute_notra_agent(user_prompt):
             "• **Availability:** 24/7 Active\n\n"
             "Please send your prompt or query to continue!"
         )
-    
+
     if "owner" in prompt_lower or "creator" in prompt_lower or "who made you" in prompt_lower:
         return "My developer and owner is **Ramim**! 🚀\n\nPlease send your prompt!"
 
@@ -65,7 +62,7 @@ def execute_notra_agent(user_prompt):
             "Status: **Done** ✅\n"
             "💡 *Please send your next email prompt or instruction!*"
         )
-    
+
     # 3. Meeting Scheduling Agent
     elif "meeting" in prompt_lower or "schedule" in prompt_lower or "calendar" in prompt_lower or "reminder" in prompt_lower:
         return (
@@ -75,7 +72,7 @@ def execute_notra_agent(user_prompt):
             "Status: **Done** ✅\n"
             "💡 *Please send your meeting prompt or schedule details!*"
         )
-    
+
     # 4. Smart Chat (HuggingFace API Fallback)
     else:
         return query_qwen_api(user_prompt)
@@ -116,7 +113,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
+
     try:
         response = execute_notra_agent(user_text)
         await update.message.reply_text(response, parse_mode="Markdown", disable_web_page_preview=True)
@@ -127,12 +124,12 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_telegram_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
-    
+
     print("NotRa Bot polling active...")
     app.run_polling(drop_pending_updates=True)
 
