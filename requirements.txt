@@ -1,0 +1,5 @@
+streamlit
+python-telegram-bot
+torch
+transformers
+accelerate
