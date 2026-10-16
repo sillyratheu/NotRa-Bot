@@ -63,23 +63,24 @@ def query_qwen_api(user_prompt):
     return f"Subject: Plan to Meet\n\nHi,\n\nI was thinking about planning a visit to a restaurant together. Let me know when you are available!"
 
 def generate_ai_email_draft(user_instructions, sender_name):
-    prompt = f"Draft a professional email based on this instruction: '{user_instructions}'. Do not include any chatbot greetings. End the email with 'Best regards, {sender_name}'. Strictly output in this format:\nSubject: <subject>\n\n<body>"
+    prompt = f"Draft a professional email based on this instruction: '{user_instructions}'. Do not include any chatbot greetings or emojis. End the email with 'Best regards, {sender_name}'. Strictly output in this format:\nSubject: <subject>\n\n<body>"
     response = query_qwen_api(prompt)
     if "Subject:" not in response:
         return f"Subject: Invitation & Plan\n\nHi,\n\n{user_instructions}\n\nPlease let me know your thoughts.\n\nBest regards,\n{sender_name}"
     return response
 
-# --- ROBUST SMTP EMAIL SENDER ---
+# --- ROBUST SMTP EMAIL SENDER WITH UTF-8 ENCODING ---
 def send_real_email(sender_email, app_password, receiver_email, subject, body):
     sender_clean = sender_email.strip()
     password_clean = app_password.strip().replace(" ", "")
     receiver_clean = receiver_email.strip()
 
+    # Use MIMEText with utf-8 charset to prevent ascii codec errors
     msg = MIMEMultipart()
     msg['From'] = sender_clean
     msg['To'] = receiver_clean
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
     errors = []
     # Try Port 465 (SSL)
@@ -103,7 +104,7 @@ def send_real_email(sender_email, app_password, receiver_email, subject, body):
     except Exception as e:
         errors.append(f"TLS (587): {str(e)}")
 
-    return False, f"All SMTP attempts failed. Details: {'; '.join(errors)}"
+    return False, f"SMTP Error: {'; '.join(errors)}"
 
 # Session Storage
 user_sessions = {}
@@ -207,14 +208,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• **AI Analysis:** {ai_vision_analysis}\n\n"
         "Status: **Done** ✅"
     )
-    await update.message.reply_text(response, parse_mode="Markdown")
+    await update.message.reply_text(response, parse_Mode="Markdown")
 
 async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_text = update.message.text.strip()
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
-    # Prevent menu buttons from breaking active email configuration steps
     if user_text in ["📧 Email Management", "📅 Meeting Scheduling", "🖼️ Process Photo", "💬 Smart Chat", "👤 Bot Info"]:
         if user_text == "📧 Email Management":
             user_sessions[chat_id] = {"step": "awaiting_sender"}
@@ -235,12 +235,10 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = user_sessions.get(chat_id)
 
-    # Multi-step AI Email Drafting & Confirmation Flow
     if session:
         step = session.get("step")
         if step == "awaiting_sender":
             session["sender"] = user_text
-            # Extract user name cleanly from email prefix (e.g., ramim125g -> Ramim)
             email_prefix = user_text.split("@")[0]
             clean_name = "".join([c for c in email_prefix if c.isalpha()]).capitalize() or "User"
             session["sender_name"] = clean_name
@@ -309,7 +307,6 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ Email dispatch cancelled.", reply_markup=reply_keyboard)
             return
 
-    # Standard Keyword Routing
     p_lower = user_text.lower()
     if "email management" in p_lower or "send email" in p_lower:
         user_sessions[chat_id] = {"step": "awaiting_sender"}
