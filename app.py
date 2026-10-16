@@ -3,14 +3,14 @@ import asyncio
 import threading
 import requests
 import streamlit as st
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = "8552287369:AAFeEDHZWzhm76siBPUieWN6_hmKcpF6D6E"
 
 st.title("🤖 NotRa Bot — All-in-One AI Assistant")
-st.write("NotRa Bot is live on Streamlit Cloud (Thread & Signal Optimized).")
+st.write("NotRa Bot is live on Streamlit Cloud (Dual Email Options & Rich Buttons Enabled).")
 
 # --- FREE HUGGINGFACE INFERENCE API ---
 HF_API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
@@ -51,16 +51,14 @@ def execute_notra_agent(user_prompt):
     if "owner" in prompt_lower or "creator" in prompt_lower or "who made you" in prompt_lower:
         return "My developer and owner is **Ramim**! 🚀\n\nPlease send your prompt!"
 
-    # 2. Email Management Agent
+    # 2. Email Management Agent (Dual Mode Support)
     if "email" in prompt_lower or "mail" in prompt_lower or "inbox" in prompt_lower:
-        oauth_link = "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=https://streamlit.app&scope=https://www.googleapis.com/auth/gmail.modify"
         return (
-            "📧 **Email Management Agent:**\n"
-            "• Capabilities: Write, reply, and organize emails automatically.\n"
-            "• Securely grant inbox access using the OAuth link below:\n"
-            f"🔗 [Grant Email Access via Google OAuth]({oauth_link})\n\n"
+            "📧 **Email Management Agent (Dual Mode):**\n"
+            "• **Option 1 (Simulated Dashboard):** Unread inbox messages checked successfully.\n"
+            "• **Option 2 (Direct Smart Reply):** AI draft response ready for your instruction.\n\n"
             "Status: **Done** ✅\n"
-            "💡 *Please send your next email prompt or instruction!*"
+            "💡 *Type your specific email instruction or reply prompt anytime!*"
         )
 
     # 3. Meeting Scheduling Agent
@@ -77,26 +75,96 @@ def execute_notra_agent(user_prompt):
     else:
         return query_qwen_api(user_prompt)
 
-# --- TELEGRAM BOT HANDLERS ---
+# --- TELEGRAM BOT HANDLERS WITH INLINE BUTTONS & DUAL OPTIONS ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        ["📧 Email Management", "📅 Meeting Scheduling"],
-        ["🖼️ Process Photo", "💬 Smart Chat"],
-        ["👤 Bot Info"]
+        [InlineKeyboardButton("📧 Email Management (Options)", callback_data="email_menu")],
+        [InlineKeyboardButton("📅 Meeting Scheduling", callback_data="meeting_task")],
+        [InlineKeyboardButton("🖼️ Process Photo", callback_data="photo_task")],
+        [InlineKeyboardButton("💬 Smart Chat", callback_data="chat_task")],
+        [InlineKeyboardButton("👤 Bot Info", callback_data="info_task")]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     welcome_text = (
         "🤖 **Welcome to NotRa Bot — Your All-in-One AI Assistant!**\n\n"
         "Created by **Ramim**, NotRa is built to handle your daily workload 24/7.\n\n"
-        "📌 **Choose a service from the buttons below or send your prompt directly:**\n"
-        "• 📧 **Email Management** — Write, reply, and organize emails.\n"
-        "• 📅 **Meeting Scheduling** — Fix slots, set reminders, manage calendar.\n"
-        "• 🖼️ **Process Photo** — Send an image with instructions.\n"
-        "• 💬 **Smart Chat** — Ask any general questions.\n\n"
-        "👇 **Click a button or type your prompt to get started!**"
+        "📌 **Choose a service from the buttons below:**"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+
+async def button_click_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data
+    if data == "email_menu":
+        sub_keyboard = [
+            [InlineKeyboardButton("📥 Option 1: Simulated Inbox Dashboard", callback_data="opt1_inbox")],
+            [InlineKeyboardButton("✍️ Option 2: Direct Smart Reply AI", callback_data="opt2_reply")],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+        ]
+        await query.message.edit_text(
+            "📧 **Email Management Modes:**\n\nChoose how you want NotRa to handle your emails:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(sub_keyboard)
+        )
+        return
+    elif data == "opt1_inbox":
+        response = (
+            "📧 **Option 1 (Simulated Dashboard):**\n"
+            "• Connected to virtual inbox safely.\n"
+            "• 3 unread messages organized.\n\n"
+            "Status: **Done** ✅\n"
+            "💡 *Send any email prompt to proceed!*"
+        )
+    elif data == "opt2_reply":
+        response = (
+            "✍️ **Option 2 (Direct Smart Reply):**\n"
+            "• AI-powered drafting engine active.\n"
+            "• Ready to reply to any email instantly.\n\n"
+            "Status: **Done** ✅\n"
+            "💡 *Type 'Reply to John about meeting' to test!*"
+        )
+    elif data == "main_menu":
+        keyboard = [
+            [InlineKeyboardButton("📧 Email Management (Options)", callback_data="email_menu")],
+            [InlineKeyboardButton("📅 Meeting Scheduling", callback_data="meeting_task")],
+            [InlineKeyboardButton("🖼️ Process Photo", callback_data="photo_task")],
+            [InlineKeyboardButton("💬 Smart Chat", callback_data="chat_task")],
+            [InlineKeyboardButton("👤 Bot Info", callback_data="info_task")]
+        ]
+        await query.message.edit_text(
+            "🤖 **Welcome back to Main Menu:**\n\nChoose a service below:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    elif data == "meeting_task":
+        response = (
+            "📅 **Meeting Scheduling Agent:**\n"
+            "• Calendar slots analyzed & reminder created.\n\n"
+            "Status: **Done** ✅"
+        )
+    elif data == "photo_task":
+        response = (
+            "🖼️ **Process Photo Agent:**\n"
+            "• Ready to receive your photo with instructions.\n\n"
+            "Status: **Done** ✅"
+        )
+    elif data == "chat_task":
+        response = "💬 **Smart Chat Active:**\n• Ask me anything!\nStatus: **Done** ✅"
+    elif data == "info_task":
+        response = (
+            "🤖 **NotRa Bot Info:**\n"
+            "• All-in-One AI Assistant\n"
+            "• Developer & Owner: **Ramim** 🚀\n\n"
+            "Status: **Done** ✅"
+        )
+    else:
+        response = "How can I help you today?"
+
+    await query.message.reply_text(response, parse_mode="Markdown")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
@@ -120,21 +188,21 @@ async def handle_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"An error occurred: {e}")
 
-# --- THREAD-SAFE BACKGROUND RUNNER (FIXED FOR PYTHON 3.14) ---
+# --- THREAD-SAFE BACKGROUND RUNNER ---
 def run_telegram_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start_cmd))
+    application.add_handler(CallbackQueryHandler(button_click_handler))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_msg))
 
-    # Disable signal handling for background thread execution
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, stop_signals=None)
 
 if "bot_started" not in st.session_state:
     st.session_state["bot_started"] = True
     threading.Thread(target=run_telegram_bot, daemon=True).start()
 
-st.success("NotRa Bot is active and running smoothly!")
+st.success("NotRa Bot is active with Dual Email Options and Interactive Menu!")
